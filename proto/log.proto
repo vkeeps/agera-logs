@@ -1,0 +1,22 @@
+syntax = "proto3";
+package log;
+option go_package = "github.com/vkeeps/agera/services/logsvc/proto";
+
+service LogService {
+  rpc SendLog (LogRequest) returns (LogResponse);
+}
+
+message LogRequest {
+  string schema = 1;       // 日志类型：login/action
+  string module = 2;       // 模块
+  string output = 3;       // 输出内容
+  string detail = 4;       // 详细信息
+  string error_info = 5;   // 异常信息
+  string service = 6;      // 服务
+  string client_ip = 7;    // 客户端 IP
+  string client_addr = 8;  // 客户端地址
+}
+
+message LogResponse {
+  bool success = 1;        // 成功否
+}
