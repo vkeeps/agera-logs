@@ -28,15 +28,28 @@ const (
 	PushTypeHTTP LogPushType = "http"
 )
 
+// LogBase 基础日志字段，供 Log 和 LogEntry 复用
+type LogBase struct {
+	Output     string `json:"output"`
+	Detail     string `json:"detail"`
+	ErrorInfo  string `json:"error_info"`
+	Service    string `json:"service"`
+	ClientIP   string `json:"client_ip"`
+	ClientAddr string `json:"client_addr"`
+}
+
+// Log 推送时的完整日志模型
 type Log struct {
-	Schema     LogSchema
-	Module     LogModule
-	Output     string
-	Detail     string
-	ErrorInfo  string
-	Service    string
-	ClientIP   string
-	ClientAddr string
-	PushType   LogPushType
-	Timestamp  time.Time
+	LogBase               // 嵌入基础字段
+	Schema    LogSchema   `json:"schema"`
+	Module    LogModule   `json:"module"`
+	PushType  LogPushType `json:"push_type"`
+	Timestamp time.Time   `json:"timestamp"`
+}
+
+// LogEntry 表中存储的日志模型
+type LogEntry struct {
+	LogBase                 // 嵌入基础字段
+	Operator      string    `json:"operator"`       // 操作人名称
+	OperationTime time.Time `json:"operation_time"` // 操作时间
 }

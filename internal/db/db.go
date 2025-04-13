@@ -1,47 +1,52 @@
 package db
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 )
 
-// GetOrCreateSchema 获取或创建 schema，返回唯一标识
+// GetOrCreateSchema 获取或创建 schema（数据库），返回固定加密的 schema_id
 func GetOrCreateSchema(schemaName string) (string, error) {
-	// 1. 从 BoltDB 获取 schemaID
-	schemaID, err := GetSchemaIDByName(schemaName) // 修正为 GetSchemaIDByName
-	if err != nil {
-		return "", err
-	}
-	if schemaID != "" {
-		return schemaID, nil
-	}
+	// 生成固定的 schema_id（基于 SHA-256 哈希）
+	schemaID := generateSchemaID(schemaName)
 
-	// 2. 检查 ClickHouse 中是否存在该 schema
-	exists, err := SchemaExists(schemaName)
+	// 1. 检查 ClickHouse 中是否存在该数据库
+	exists, err := DatabaseExists(schemaName)
 	if err != nil {
+		log.Printf("检查 ClickHouse 数据库 %s 失败: %v", schemaName, err)
 		return "", err
 	}
-	if exists {
-		// 如果存在，直接使用 schemaName 作为 schemaID 并缓存
-		schemaID = schemaName
-		err = CacheSchema(schemaName, schemaID)
-		if err != nil {
-			log.Printf("缓存 schema %s 失败: %v", schemaName, err)
+	if !exists {
+		// 如果数据库不存在，创建它
+		if err := CreateDatabase(schemaName); err != nil {
+			log.Printf("创建 ClickHouse 数据库 %s 失败: %v", schemaName, err)
+			return "", err
 		}
-		return schemaID, nil
 	}
 
-	// 3. 创建 schema
-	err = CreateSchema(schemaName)
+	// 2. 检查 BoltDB 是否有缓存
+	storedID, err := GetSchemaIDByName(schemaName)
 	if err != nil {
+		log.Printf("从 BoltDB 获取 schema %s 的 ID 失败: %v", schemaName, err)
 		return "", err
 	}
 
-	// 4. 使用 schemaName 作为 schemaID 并缓存
-	schemaID = schemaName
-	err = CacheSchema(schemaName, schemaID)
-	if err != nil {
+	// 3. 无论是否有缓存，都覆盖存储，确保一致性
+	if storedID == "" {
+		log.Printf("BoltDB 中无 schema %s 的缓存，存储 ID: %s", schemaName, schemaID)
+	}
+	// 直接覆盖缓存，避免不一致
+	if err := CacheSchema(schemaID, schemaName); err != nil {
 		log.Printf("缓存 schema %s 失败: %v", schemaName, err)
+		// 缓存失败不影响返回，继续返回 schemaID
 	}
 
 	return schemaID, nil
+}
+
+// generateSchemaID 根据 schemaName 生成固定的加密 ID
+func generateSchemaID(schemaName string) string {
+	hash := sha256.Sum256([]byte(schemaName))
+	return hex.EncodeToString(hash[:])
 }

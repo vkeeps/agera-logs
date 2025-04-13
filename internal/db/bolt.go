@@ -25,11 +25,11 @@ func InitBolt() {
 	log.Println("BoltDB 初始化成功")
 }
 
-// CacheSchema 将 schema_id 和 schema 名称的映射存入 BoltDB
+// CacheSchema 将 schema_name 和 schema_id 的映射存入 BoltDB
 func CacheSchema(schemaID, schemaName string) error {
 	return BoltDB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("schemas"))
-		return b.Put([]byte(schemaID), []byte(schemaName))
+		return b.Put([]byte(schemaName), []byte(schemaID)) // 使用 schemaName 作为键，schemaID 作为值
 	})
 }
 
@@ -38,9 +38,12 @@ func GetSchemaNameByID(schemaID string) (string, error) {
 	var schemaName string
 	err := BoltDB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("schemas"))
-		name := b.Get([]byte(schemaID))
-		if name != nil {
-			schemaName = string(name)
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if string(v) == schemaID {
+				schemaName = string(k)
+				break
+			}
 		}
 		return nil
 	})
@@ -52,12 +55,9 @@ func GetSchemaIDByName(schemaName string) (string, error) {
 	var schemaID string
 	err := BoltDB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("schemas"))
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			if string(v) == schemaName {
-				schemaID = string(k)
-				break
-			}
+		id := b.Get([]byte(schemaName))
+		if id != nil {
+			schemaID = string(id)
 		}
 		return nil
 	})

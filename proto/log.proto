@@ -1,6 +1,6 @@
 syntax = "proto3";
 package log;
-option go_package = "github.com/vkeeps/agera/services/logsvc/proto";
+option go_package = "github.com/vkeeps/agera-logs/proto";
 
 service LogService {
   rpc SendLog (LogRequest) returns (LogResponse);
@@ -15,6 +15,7 @@ message LogRequest {
   string service = 6;      // 服务
   string client_ip = 7;    // 客户端 IP
   string client_addr = 8;  // 客户端地址
+  string operator = 9;     // 操作人名称
 }
 
 message LogResponse {

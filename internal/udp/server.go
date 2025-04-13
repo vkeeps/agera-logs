@@ -16,14 +16,25 @@ type UDPLogRequest struct {
 	SchemaID   string `json:"schema_id"`
 	Module     string `json:"module"`
 	Output     string `json:"output"`
-	Detail     string `json:"detail"`
-	ErrorInfo  string `json:"error_info"`
-	Service    string `json:"service"`
-	ClientIP   string `json:"client_ip"`
-	ClientAddr string `json:"client_addr"`
+	Detail     string `json:"detail,omitempty"`
+	ErrorInfo  string `json:"error_info,omitempty"`
+	Service    string `json:"service,omitempty"`
+	ClientIP   string `json:"client_ip,omitempty"`
+	ClientAddr string `json:"client_addr,omitempty"`
+	Operator   string `json:"operator,omitempty"`
 }
 
-// StartUDPServer 启动 UDP 服务
+// validModule 检查 module 是否合法
+func validModule(module string) bool {
+	switch model.LogModule(module) {
+	case model.ModuleLogin, model.ModuleLogout, model.ModuleError,
+		model.ModulePermission, model.ModuleUser, model.ModuleGroup:
+		return true
+	default:
+		return false
+	}
+}
+
 func StartUDPServer(basePort int) {
 	port := basePort
 	var conn *net.UDPConn
@@ -63,25 +74,40 @@ func StartUDPServer(basePort int) {
 			continue
 		}
 
-		// 根据 schemaID 获取 schema 名称
+		// 验证 schema_id 是否合法
 		schemaName, err := db.GetSchemaNameByID(req.SchemaID)
-		if err != nil || schemaName == "" {
-			log.Printf("无效的 schema_id: %s", req.SchemaID)
+		if err != nil {
+			log.Printf("获取 schema_id %s 失败: %v", req.SchemaID, err)
+			continue
+		}
+		if schemaName == "" {
+			log.Printf("无效的 schema_id: %s，未在 BoltDB 中注册", req.SchemaID)
 			continue
 		}
 
-		entry := &model.Log{
-			Schema:     model.LogSchema(schemaName),
-			Module:     model.LogModule(req.Module),
-			Output:     req.Output,
-			Detail:     req.Detail,
-			ErrorInfo:  req.ErrorInfo,
-			Service:    req.Service,
-			ClientIP:   req.ClientIP,
-			ClientAddr: req.ClientAddr,
-			PushType:   model.PushTypeUDP,
-			Timestamp:  time.Now(),
+		// 验证 module 是否合法
+		if !validModule(req.Module) {
+			log.Printf("无效的 module: %s", req.Module)
+			continue
 		}
+
+		// 构造日志条目
+		entry := &model.Log{
+			LogBase: model.LogBase{
+				Output:     req.Output,
+				Detail:     req.Detail,
+				ErrorInfo:  req.ErrorInfo,
+				Service:    req.Service,
+				ClientIP:   req.ClientIP,
+				ClientAddr: req.ClientAddr,
+			},
+			Schema:    model.LogSchema(schemaName),
+			Module:    model.LogModule(req.Module),
+			PushType:  model.PushTypeUDP,
+			Timestamp: time.Now(),
+		}
+
+		// 插入日志（表不存在会自动创建）
 		if err := db.InsertLog(entry); err != nil {
 			log.Printf("插入日志失败: %v", err)
 		}
