@@ -26,6 +26,7 @@ const (
 	PushTypeGRPC LogPushType = "grpc"
 	PushTypeUDP  LogPushType = "udp"
 	PushTypeHTTP LogPushType = "http"
+	PushTypeTCP  LogPushType = "tcp"
 )
 
 // LogBase 基础日志字段，供 Log 和 LogEntry 复用

@@ -6,8 +6,11 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.34.0
 	github.com/boltdb/bolt v1.3.1
 	github.com/gin-gonic/gin v1.10.0
+	github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5
+	github.com/sirupsen/logrus v1.9.3
 	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
