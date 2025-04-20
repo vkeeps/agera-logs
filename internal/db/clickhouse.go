@@ -58,7 +58,7 @@ func EnsureTable(schemaName, moduleName string, log *logrus.Logger) error {
 	tablesMu.Lock()
 	defer tablesMu.Unlock()
 
-	tableName := fmt.Sprintf("%s.%s%s_%s", schemaName, TablePrefix, schemaName, moduleName)
+	tableName := fmt.Sprintf("%s.%s%s", schemaName, TablePrefix, moduleName)
 	if tables[tableName] {
 		return nil
 	}
@@ -71,6 +71,7 @@ func EnsureTable(schemaName, moduleName string, log *logrus.Logger) error {
 			service String NOT NULL,
 			client_ip String NOT NULL,
 			client_addr String NOT NULL,
+			operator_id String NOT NULL,
 			operator String NOT NULL,
 			operation_time DateTime NOT NULL,
 			push_type String NOT NULL
@@ -108,10 +109,10 @@ func InsertLogs(entries []*model.Log, log *logrus.Logger) error {
 	}
 
 	// 准备批量插入语句
-	tableName := fmt.Sprintf("%s.%s%s_%s", schemaName, TablePrefix, schemaName, moduleName)
+	tableName := fmt.Sprintf("%s.%s%s", schemaName, TablePrefix, moduleName)
 	query := fmt.Sprintf(`
-		INSERT INTO %s (output, detail, error_info, service, client_ip, client_addr, operator, operation_time, push_type)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO %s (output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operation_time, push_type)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, tableName)
 	stmt, err := tx.Prepare(query)
 	if err != nil {
@@ -129,7 +130,8 @@ func InsertLogs(entries []*model.Log, log *logrus.Logger) error {
 			nonEmpty(entry.Service, "unknown"),
 			nonEmpty(entry.ClientIP, "0.0.0.0"),
 			nonEmpty(entry.ClientAddr, "unknown"),
-			nonEmpty("unknown", "unknown"),
+			nonEmpty(entry.OperatorID, "unknown"),
+			nonEmpty(entry.Operator, "unknown"),
 			entry.Timestamp,
 			string(entry.PushType),
 		)

@@ -17,14 +17,13 @@ import (
 )
 
 type TCPLogRequest struct {
-	SchemaID   string `json:"schema_id"`
+	SchemaID   string `json:"schema_id,schemaId"`
 	Module     string `json:"module"`
 	Output     string `json:"output"`
 	Detail     string `json:"detail,omitempty"`
 	ErrorInfo  string `json:"error_info,omitempty"`
 	Service    string `json:"service,omitempty"`
-	ClientIP   string `json:"client_ip,omitempty"`
-	ClientAddr string `json:"client_addr,omitempty"`
+	OperatorID string `json:"operator_id,operatorId"`
 	Operator   string `json:"operator,omitempty"`
 }
 
@@ -52,13 +51,7 @@ func init() {
 }
 
 func validModule(module string) bool {
-	switch model.LogModule(module) {
-	case model.ModuleLogin, model.ModuleLogout, model.ModuleError,
-		model.ModulePermission, model.ModuleUser, model.ModuleGroup:
-		return true
-	default:
-		return false
-	}
+	return module != ""
 }
 
 func StartTCPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
@@ -166,6 +159,9 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 
 	reader := bufio.NewReader(conn)
 
+	remoteAddr := conn.RemoteAddr().String()
+	clientIP, clientAddr := parseRemoteAddr(remoteAddr)
+
 	readTimeout := 1 * time.Second
 	if t, err := time.ParseDuration(os.Getenv("READ_TIMEOUT")); err == nil && t > 0 {
 		readTimeout = t
@@ -174,7 +170,7 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 	for {
 		select {
 		case <-stopChan:
-			log.Info(fmt.Sprintf("停止处理连接: %s", conn.RemoteAddr().String()))
+			log.Info(fmt.Sprintf("停止处理连接: %s", remoteAddr))
 			return
 		default:
 			conn.SetReadDeadline(time.Now().Add(readTimeout))
@@ -188,7 +184,12 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 
 			var req TCPLogRequest
 			if err := json.Unmarshal(line, &req); err != nil {
-				log.Error(fmt.Sprintf("TCP 数据解析失败: %v", err))
+				log.Error(fmt.Sprintf("TCP 数据解析失败: %v, 原始数据: %s", err, string(line)))
+				continue
+			}
+
+			if req.SchemaID == "" {
+				log.Error(fmt.Sprintf("收到空 schema_id，原始数据: %s", string(line)))
 				continue
 			}
 
@@ -198,8 +199,21 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 				continue
 			}
 			if schemaName == "" {
-				log.Error(fmt.Sprintf("无效的 schema_id: %s，未在 BoltDB 中注册", req.SchemaID))
-				continue
+				log.Warn(fmt.Sprintf("无效的 schema_id: %s，未在 BoltDB 中注册, 原始数据: %s", req.SchemaID, string(line)))
+				db.RebuildSchemaCache(req.SchemaID, log)
+				start := time.Now()
+				timeout := 100 * time.Millisecond
+				for time.Since(start) < timeout {
+					schemaName, err = db.GetSchemaNameByID(req.SchemaID, log)
+					if err == nil && schemaName != "" {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				if schemaName == "" {
+					log.Error(fmt.Sprintf("重试后仍无效的 schema_id: %s，跳过插入", req.SchemaID))
+					continue
+				}
 			}
 
 			if !validModule(req.Module) {
@@ -213,20 +227,22 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 					Detail:     req.Detail,
 					ErrorInfo:  req.ErrorInfo,
 					Service:    req.Service,
-					ClientIP:   req.ClientIP,
-					ClientAddr: req.ClientAddr,
+					ClientIP:   clientIP,
+					ClientAddr: clientAddr,
 				},
-				Schema:    model.LogSchema(schemaName),
-				Module:    model.LogModule(req.Module),
-				PushType:  model.PushTypeTCP,
-				Timestamp: time.Now(),
+				Schema:     model.LogSchema(schemaName),
+				Module:     model.LogModule(req.Module),
+				PushType:   model.PushTypeTCP,
+				Timestamp:  time.Now(),
+				OperatorID: req.OperatorID,
+				Operator:   req.Operator,
 			}
 
 			mu.Lock()
 			if len(*logBuffer) < bufferCapacity {
 				*logBuffer = append(*logBuffer, entry)
 				count := atomic.AddInt64(&receivedCount, 1)
-				log.Info(fmt.Sprintf("收到第 %d 条数据，从 %s", count, conn.RemoteAddr().String()))
+				log.Info(fmt.Sprintf("收到第 %d 条数据，从 %s", count, remoteAddr))
 			} else {
 				log.Error(fmt.Sprintf("缓冲区已满，丢弃日志: %v", entry))
 			}
@@ -249,6 +265,14 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 			}
 		}
 	}
+}
+
+func parseRemoteAddr(addr string) (clientIP, clientAddr string) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "0.0.0.0", addr
+	}
+	return host, addr
 }
 
 func netErrTimeout(err error) bool {

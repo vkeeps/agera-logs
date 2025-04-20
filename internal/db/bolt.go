@@ -1,6 +1,8 @@
 package db
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"github.com/boltdb/bolt"
 	"github.com/sirupsen/logrus"
@@ -62,4 +64,40 @@ func GetSchemaIDByName(schemaName string, log *logrus.Logger) (string, error) {
 		return nil
 	})
 	return schemaID, err
+}
+
+// RebuildSchemaCache 异步重建 BoltDB schema 缓存
+func RebuildSchemaCache(schemaID string, log *logrus.Logger) {
+	go func() {
+		rows, err := ClickHouseDB.Query("SHOW DATABASES")
+		if err != nil {
+			log.Error(fmt.Sprintf("查询 ClickHouse 数据库列表失败: %v", err))
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var dbName string
+			if err := rows.Scan(&dbName); err != nil {
+				log.Error(fmt.Sprintf("扫描 ClickHouse 数据库名失败: %v", err))
+				continue
+			}
+			generatedID := GenerateSchemaID(dbName)
+			if generatedID == schemaID {
+				if err := CacheSchema(schemaID, dbName, log); err != nil {
+					log.Error(fmt.Sprintf("重建 schema %s (ID: %s) 缓存失败: %v", dbName, schemaID, err))
+				} else {
+					log.Info(fmt.Sprintf("成功重建 schema %s (ID: %s) 缓存", dbName, schemaID))
+				}
+				return
+			}
+		}
+		log.Warn(fmt.Sprintf("未找到 schema_id %s 对应的 ClickHouse 数据库，无法重建缓存", schemaID))
+	}()
+}
+
+// GenerateSchemaID 根据 schemaName 生成固定的加密 ID
+func GenerateSchemaID(schemaName string) string {
+	hash := sha256.Sum256([]byte(schemaName))
+	return hex.EncodeToString(hash[:])
 }

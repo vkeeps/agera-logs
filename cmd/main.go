@@ -24,7 +24,7 @@ import (
 
 func getAvailablePort(basePort int, protocol string, log *logrus.Logger) (net.Listener, int, error) {
 	port := basePort
-	for {
+	for retries := 5; retries > 0; retries-- {
 		if port > 65535 {
 			err := fmt.Errorf("无法找到可用的端口，端口号超出范围")
 			log.Error(err.Error())
@@ -34,9 +34,13 @@ func getAvailablePort(basePort int, protocol string, log *logrus.Logger) (net.Li
 		if err == nil {
 			return lis, port, nil
 		}
-		log.Info(fmt.Sprintf("端口 %d 被占，试下个: %v", port, err))
+		log.Info(fmt.Sprintf("端口 %d 被占，尝试下一个端口: %v", port, err))
 		port++
+		time.Sleep(100 * time.Millisecond) // Avoid rapid retries
 	}
+	err := fmt.Errorf("无法找到可用端口，尝试 %d 次后失败", 5)
+	log.Error(err.Error())
+	return nil, 0, err
 }
 
 func main() {
@@ -121,17 +125,20 @@ func main() {
 			httpPort = p
 		}
 	}
-	_, httpPort, err = getAvailablePort(httpPort, "tcp", log)
+	httpLis, httpPort, err := getAvailablePort(httpPort, "tcp", log)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("获取 HTTP 端口失败: %v", err))
 	}
+	defer httpLis.Close() // Ensure listener is closed if RunListener fails
 	r := http.SetupRouter(log)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		log.Info(fmt.Sprintf("HTTP 服务跑起来了，端口: %d", httpPort))
-		if err := r.Run(":" + strconv.Itoa(httpPort)); err != nil {
+		log.Info(fmt.Sprintf("HTTP 服务启动，尝试绑定端口: %d", httpPort))
+		if err := r.RunListener(httpLis); err != nil {
 			log.Error(fmt.Sprintf("HTTP 服务挂了: %v", err))
+		} else {
+			log.Info(fmt.Sprintf("HTTP 服务成功运行，端口: %d", httpPort))
 		}
 	}()
 

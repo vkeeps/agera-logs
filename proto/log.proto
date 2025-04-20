@@ -1,23 +1,23 @@
 syntax = "proto3";
-package log;
+
+package proto;
 option go_package = "github.com/vkeeps/agera-logs/proto";
 
 service LogService {
-  rpc SendLog (LogRequest) returns (LogResponse);
+  rpc SendLog(LogRequest) returns (LogResponse);
 }
 
 message LogRequest {
-  string schema = 1;       // 日志类型：login/action
-  string module = 2;       // 模块
-  string output = 3;       // 输出内容
-  string detail = 4;       // 详细信息
-  string error_info = 5;   // 异常信息
-  string service = 6;      // 服务
-  string client_ip = 7;    // 客户端 IP
-  string client_addr = 8;  // 客户端地址
-  string operator = 9;     // 操作人名称
+  string schema = 1;
+  string module = 2;
+  string output = 3;
+  string detail = 4;
+  string error_info = 5;
+  string service = 6;
+  string operatorID = 7;
+  string operator = 8;
 }
 
 message LogResponse {
-  bool success = 1;        // 成功否
+  bool success = 1;
 }

@@ -77,14 +77,15 @@ func getSchema(log *logrus.Logger) gin.HandlerFunc {
 func createLog(log *logrus.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			Schema    string `json:"schema" binding:"required"`
-			Module    string `json:"module" binding:"required"`
-			Output    string `json:"output" binding:"required"`
-			Detail    string `json:"detail"`
-			ErrorInfo string `json:"error_info"`
-			Service   string `json:"service"`
-			ClientIP  string `json:"client_ip"`
-			Operator  string `json:"operator"`
+			Schema     string `json:"schema" binding:"required"`
+			Module     string `json:"module" binding:"required"`
+			Output     string `json:"output" binding:"required"`
+			Detail     string `json:"detail"`
+			ErrorInfo  string `json:"error_info"`
+			Service    string `json:"service"`
+			ClientIP   string `json:"client_ip"`
+			OperatorID string `json:"operator_id"`
+			Operator   string `json:"operator"`
 		}
 		if err := c.BindJSON(&req); err != nil {
 			log.Error("数据格式有误")
@@ -100,13 +101,14 @@ func createLog(log *logrus.Logger) gin.HandlerFunc {
 				Service:   req.Service,
 				ClientIP:  req.ClientIP,
 			},
-			Schema:    model.LogSchema(req.Schema),
-			Module:    model.LogModule(req.Module),
-			PushType:  model.PushTypeHTTP,
-			Timestamp: time.Now(),
+			Schema:     model.LogSchema(req.Schema),
+			Module:     model.LogModule(req.Module),
+			PushType:   model.PushTypeHTTP,
+			Timestamp:  time.Now(),
+			OperatorID: req.OperatorID, // 支持 operator_id
+			Operator:   req.Operator,   // 支持 operator
 		}
 
-		// 使用 InsertLogs 插入单条日志
 		if err := db.InsertLogs([]*model.Log{entry}, log); err != nil {
 			log.Error("日志插入失败")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "日志插入失败"})
@@ -128,7 +130,7 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 			return
 		}
 
-		rows, err := db.ClickHouseDB.Query("SELECT output, detail, error_info, service, client_ip, client_addr, operator, operation_time, push_type FROM " + tableName)
+		rows, err := db.ClickHouseDB.Query("SELECT output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operation_time, push_type FROM " + tableName)
 		if err != nil {
 			log.Error("查询日志失败")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询日志失败"})
@@ -137,16 +139,33 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 		defer rows.Close()
 
 		var logs []struct {
-			model.LogEntry
-			PushType string
+			Output        string
+			Detail        string
+			ErrorInfo     string
+			Service       string
+			ClientIP      string
+			ClientAddr    string
+			OperatorID    string
+			Operator      string
+			OperationTime time.Time
+			PushType      string
 		}
 		for rows.Next() {
 			var entry struct {
-				model.LogEntry
-				PushType string
+				Output        string
+				Detail        string
+				ErrorInfo     string
+				Service       string
+				ClientIP      string
+				ClientAddr    string
+				OperatorID    string
+				Operator      string
+				OperationTime time.Time
+				PushType      string
 			}
 			if err := rows.Scan(&entry.Output, &entry.Detail, &entry.ErrorInfo, &entry.Service,
-				&entry.ClientIP, &entry.ClientAddr, &entry.Operator, &entry.OperationTime, &entry.PushType); err != nil {
+				&entry.ClientIP, &entry.ClientAddr, &entry.OperatorID, &entry.Operator,
+				&entry.OperationTime, &entry.PushType); err != nil {
 				log.Error("日志解析失败")
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "日志解析失败"})
 				return

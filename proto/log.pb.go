@@ -23,14 +23,14 @@ const (
 
 type LogRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Schema        string                 `protobuf:"bytes,1,opt,name=schema,proto3" json:"schema,omitempty"`                           // 日志类型：login/action
-	Module        string                 `protobuf:"bytes,2,opt,name=module,proto3" json:"module,omitempty"`                           // 模块
-	Output        string                 `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`                           // 输出内容
-	Detail        string                 `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`                           // 详细信息
-	ErrorInfo     string                 `protobuf:"bytes,5,opt,name=error_info,json=errorInfo,proto3" json:"error_info,omitempty"`    // 异常信息
-	Service       string                 `protobuf:"bytes,6,opt,name=service,proto3" json:"service,omitempty"`                         // 服务
-	ClientIp      string                 `protobuf:"bytes,7,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`       // 客户端 IP
-	ClientAddr    string                 `protobuf:"bytes,8,opt,name=client_addr,json=clientAddr,proto3" json:"client_addr,omitempty"` // 客户端地址
+	Schema        string                 `protobuf:"bytes,1,opt,name=schema,proto3" json:"schema,omitempty"`
+	Module        string                 `protobuf:"bytes,2,opt,name=module,proto3" json:"module,omitempty"`
+	Output        string                 `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
+	Detail        string                 `protobuf:"bytes,4,opt,name=detail,proto3" json:"detail,omitempty"`
+	ErrorInfo     string                 `protobuf:"bytes,5,opt,name=error_info,json=errorInfo,proto3" json:"error_info,omitempty"`
+	Service       string                 `protobuf:"bytes,6,opt,name=service,proto3" json:"service,omitempty"`
+	OperatorID    string                 `protobuf:"bytes,7,opt,name=operatorID,proto3" json:"operatorID,omitempty"`
+	Operator      string                 `protobuf:"bytes,8,opt,name=operator,proto3" json:"operator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -107,23 +107,23 @@ func (x *LogRequest) GetService() string {
 	return ""
 }
 
-func (x *LogRequest) GetClientIp() string {
+func (x *LogRequest) GetOperatorID() string {
 	if x != nil {
-		return x.ClientIp
+		return x.OperatorID
 	}
 	return ""
 }
 
-func (x *LogRequest) GetClientAddr() string {
+func (x *LogRequest) GetOperator() string {
 	if x != nil {
-		return x.ClientAddr
+		return x.Operator
 	}
 	return ""
 }
 
 type LogResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"` // 成功否
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -169,7 +169,7 @@ var File_proto_log_proto protoreflect.FileDescriptor
 
 const file_proto_log_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/log.proto\x12\x03log\"\xe3\x01\n" +
+	"\x0fproto/log.proto\x12\x05proto\"\xe1\x01\n" +
 	"\n" +
 	"LogRequest\x12\x16\n" +
 	"\x06schema\x18\x01 \x01(\tR\x06schema\x12\x16\n" +
@@ -178,15 +178,16 @@ const file_proto_log_proto_rawDesc = "" +
 	"\x06detail\x18\x04 \x01(\tR\x06detail\x12\x1d\n" +
 	"\n" +
 	"error_info\x18\x05 \x01(\tR\terrorInfo\x12\x18\n" +
-	"\aservice\x18\x06 \x01(\tR\aservice\x12\x1b\n" +
-	"\tclient_ip\x18\a \x01(\tR\bclientIp\x12\x1f\n" +
-	"\vclient_addr\x18\b \x01(\tR\n" +
-	"clientAddr\"'\n" +
-	"\vLogResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2:\n" +
+	"\aservice\x18\x06 \x01(\tR\aservice\x12\x1e\n" +
 	"\n" +
-	"LogService\x12,\n" +
-	"\aSendLog\x12\x0f.log.LogRequest\x1a\x10.log.LogResponseB/Z-github.com/vkeeps/agera/services/logsvc/protob\x06proto3"
+	"operatorID\x18\a \x01(\tR\n" +
+	"operatorID\x12\x1a\n" +
+	"\boperator\x18\b \x01(\tR\boperator\"'\n" +
+	"\vLogResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2>\n" +
+	"\n" +
+	"LogService\x120\n" +
+	"\aSendLog\x12\x11.proto.LogRequest\x1a\x12.proto.LogResponseB$Z\"github.com/vkeeps/agera-logs/protob\x06proto3"
 
 var (
 	file_proto_log_proto_rawDescOnce sync.Once
@@ -202,12 +203,12 @@ func file_proto_log_proto_rawDescGZIP() []byte {
 
 var file_proto_log_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_proto_log_proto_goTypes = []any{
-	(*LogRequest)(nil),  // 0: log.LogRequest
-	(*LogResponse)(nil), // 1: log.LogResponse
+	(*LogRequest)(nil),  // 0: proto.LogRequest
+	(*LogResponse)(nil), // 1: proto.LogResponse
 }
 var file_proto_log_proto_depIdxs = []int32{
-	0, // 0: log.LogService.SendLog:input_type -> log.LogRequest
-	1, // 1: log.LogService.SendLog:output_type -> log.LogResponse
+	0, // 0: proto.LogService.SendLog:input_type -> proto.LogRequest
+	1, // 1: proto.LogService.SendLog:output_type -> proto.LogResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

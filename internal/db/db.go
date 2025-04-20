@@ -1,8 +1,6 @@
 package db
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"github.com/sirupsen/logrus"
 )
@@ -10,7 +8,7 @@ import (
 // GetOrCreateSchema 获取或创建 schema（数据库），返回固定加密的 schema_id
 func GetOrCreateSchema(schemaName string, log *logrus.Logger) (string, error) {
 	// 生成固定的 schema_id（基于 SHA-256 哈希）
-	schemaID := generateSchemaID(schemaName)
+	schemaID := GenerateSchemaID(schemaName)
 
 	// 1. 检查 ClickHouse 中是否存在该数据库
 	exists, err := DatabaseExists(schemaName, log)
@@ -44,10 +42,4 @@ func GetOrCreateSchema(schemaName string, log *logrus.Logger) (string, error) {
 	}
 
 	return schemaID, nil
-}
-
-// generateSchemaID 根据 schemaName 生成固定的加密 ID
-func generateSchemaID(schemaName string) string {
-	hash := sha256.Sum256([]byte(schemaName))
-	return hex.EncodeToString(hash[:])
 }

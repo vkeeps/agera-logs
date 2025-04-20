@@ -41,16 +41,19 @@ type LogBase struct {
 
 // Log 推送时的完整日志模型
 type Log struct {
-	LogBase               // 嵌入基础字段
-	Schema    LogSchema   `json:"schema"`
-	Module    LogModule   `json:"module"`
-	PushType  LogPushType `json:"push_type"`
-	Timestamp time.Time   `json:"timestamp"`
+	LogBase                // 嵌入基础字段
+	Schema     LogSchema   `json:"schema"`
+	Module     LogModule   `json:"module"`
+	PushType   LogPushType `json:"push_type"`
+	Timestamp  time.Time   `json:"timestamp"`
+	OperatorID string      `json:"operator_id"` // 操作人ID
+	Operator   string      `json:"operator"`    // 操作人名称
 }
 
 // LogEntry 表中存储的日志模型
 type LogEntry struct {
 	LogBase                 // 嵌入基础字段
-	Operator      string    `json:"operator"`       // 操作人名称
+	OperatorID    string    `json:"operator_id"`    // 添加 operator_id
+	Operator      string    `json:"operator"`       // 添加 operator
 	OperationTime time.Time `json:"operation_time"` // 操作时间
 }

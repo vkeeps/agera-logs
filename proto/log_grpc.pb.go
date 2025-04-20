@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LogService_SendLog_FullMethodName = "/log.LogService/SendLog"
+	LogService_SendLog_FullMethodName = "/proto.LogService/SendLog"
 )
 
 // LogServiceClient is the client API for LogService service.
@@ -108,7 +108,7 @@ func _LogService_SendLog_Handler(srv interface{}, ctx context.Context, dec func(
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var LogService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "log.LogService",
+	ServiceName: "proto.LogService",
 	HandlerType: (*LogServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

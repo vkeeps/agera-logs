@@ -16,14 +16,13 @@ import (
 )
 
 type UDPLogRequest struct {
-	SchemaID   string `json:"schema_id"`
+	SchemaID   string `json:"schema_id,schemaId"`
 	Module     string `json:"module"`
 	Output     string `json:"output"`
 	Detail     string `json:"detail,omitempty"`
 	ErrorInfo  string `json:"error_info,omitempty"`
 	Service    string `json:"service,omitempty"`
-	ClientIP   string `json:"client_ip,omitempty"`
-	ClientAddr string `json:"client_addr,omitempty"`
+	OperatorID string `json:"operator_id,operatorId"` // 添加 operator_id
 	Operator   string `json:"operator,omitempty"`
 }
 
@@ -52,13 +51,7 @@ func init() {
 }
 
 func validModule(module string) bool {
-	switch model.LogModule(module) {
-	case model.ModuleLogin, model.ModuleLogout, model.ModuleError,
-		model.ModulePermission, model.ModuleUser, model.ModuleGroup:
-		return true
-	default:
-		return false
-	}
+	return module != ""
 }
 
 func StartUDPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
@@ -153,7 +146,12 @@ func StartUDPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
 			for pkt := range dataChan {
 				var req UDPLogRequest
 				if err := json.Unmarshal(pkt.data, &req); err != nil {
-					log.Error(fmt.Sprintf("UDP 数据解析失败: %v", err))
+					log.Error(fmt.Sprintf("UDP 数据解析失败: %v, 原始数据: %s", err, string(pkt.data)))
+					continue
+				}
+
+				if req.SchemaID == "" {
+					log.Error(fmt.Sprintf("收到空 schema_id，原始数据: %s", string(pkt.data)))
 					continue
 				}
 
@@ -163,8 +161,21 @@ func StartUDPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
 					continue
 				}
 				if schemaName == "" {
-					log.Error(fmt.Sprintf("无效的 schema_id: %s，未在 BoltDB 中注册", req.SchemaID))
-					continue
+					log.Warn(fmt.Sprintf("无效的 schema_id: %s，未在 BoltDB 中注册, 原始数据: %s", req.SchemaID, string(pkt.data)))
+					db.RebuildSchemaCache(req.SchemaID, log)
+					start := time.Now()
+					timeout := 100 * time.Millisecond
+					for time.Since(start) < timeout {
+						schemaName, err = db.GetSchemaNameByID(req.SchemaID, log)
+						if err == nil && schemaName != "" {
+							break
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					if schemaName == "" {
+						log.Error(fmt.Sprintf("重试后仍无效的 schema_id: %s，跳过插入", req.SchemaID))
+						continue
+					}
 				}
 
 				if !validModule(req.Module) {
@@ -172,19 +183,23 @@ func StartUDPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
 					continue
 				}
 
+				clientIP, clientAddr := parseRemoteAddr(pkt.addr.String())
+
 				entry := &model.Log{
 					LogBase: model.LogBase{
 						Output:     req.Output,
 						Detail:     req.Detail,
 						ErrorInfo:  req.ErrorInfo,
 						Service:    req.Service,
-						ClientIP:   req.ClientIP,
-						ClientAddr: req.ClientAddr,
+						ClientIP:   clientIP,
+						ClientAddr: clientAddr,
 					},
-					Schema:    model.LogSchema(schemaName),
-					Module:    model.LogModule(req.Module),
-					PushType:  model.PushTypeUDP,
-					Timestamp: time.Now(),
+					Schema:     model.LogSchema(schemaName),
+					Module:     model.LogModule(req.Module),
+					PushType:   model.PushTypeUDP,
+					Timestamp:  time.Now(),
+					OperatorID: req.OperatorID, // 赋值 operator_id
+					Operator:   req.Operator,   // 赋值 operator
 				}
 
 				mu.Lock()
@@ -319,4 +334,12 @@ func sendAck(addr *net.UDPAddr, log *logrus.Logger) {
 		}
 		break
 	}
+}
+
+func parseRemoteAddr(addr string) (clientIP, clientAddr string) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "0.0.0.0", addr
+	}
+	return host, addr
 }
