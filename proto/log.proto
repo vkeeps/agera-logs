@@ -16,6 +16,10 @@ message LogRequest {
   string service = 6;
   string operatorID = 7;
   string operator = 8;
+  string operatorIP = 9;
+  string operator_equipment = 10;
+  string operator_company = 11;
+  string operator_project = 12;
 }
 
 message LogResponse {

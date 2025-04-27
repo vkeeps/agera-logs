@@ -17,14 +17,18 @@ import (
 )
 
 type TCPLogRequest struct {
-	SchemaID   string `json:"schema_id,schemaId"`
-	Module     string `json:"module"`
-	Output     string `json:"output"`
-	Detail     string `json:"detail,omitempty"`
-	ErrorInfo  string `json:"error_info,omitempty"`
-	Service    string `json:"service,omitempty"`
-	OperatorID string `json:"operator_id,operatorId"`
-	Operator   string `json:"operator,omitempty"`
+	SchemaID          string `json:"schema_id,schemaId"`
+	Module            string `json:"module"`
+	Output            string `json:"output"`
+	Detail            string `json:"detail,omitempty"`
+	ErrorInfo         string `json:"error_info,omitempty"`
+	Service           string `json:"service,omitempty"`
+	OperatorID        string `json:"operator_id,operatorId"`
+	Operator          string `json:"operator,omitempty"`
+	OperatorIP        string `json:"operator_ip,omitempty"`
+	OperatorEquipment string `json:"operator_equipment,omitempty"`
+	OperatorCompany   string `json:"operator_company,omitempty"`
+	OperatorProject   string `json:"operator_project,omitempty"`
 }
 
 var (
@@ -230,12 +234,16 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 					ClientIP:   clientIP,
 					ClientAddr: clientAddr,
 				},
-				Schema:     model.LogSchema(schemaName),
-				Module:     model.LogModule(req.Module),
-				PushType:   model.PushTypeTCP,
-				Timestamp:  time.Now(),
-				OperatorID: req.OperatorID,
-				Operator:   req.Operator,
+				Schema:            model.LogSchema(schemaName),
+				Module:            model.LogModule(req.Module),
+				PushType:          model.PushTypeTCP,
+				Timestamp:         time.Now(),
+				OperatorID:        req.OperatorID,
+				Operator:          req.Operator,
+				OperatorIP:        req.OperatorIP,
+				OperatorEquipment: req.OperatorEquipment,
+				OperatorCompany:   req.OperatorCompany,
+				OperatorProject:   req.OperatorProject,
 			}
 
 			mu.Lock()

@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -58,7 +59,7 @@ func EnsureTable(schemaName, moduleName string, log *logrus.Logger) error {
 	tablesMu.Lock()
 	defer tablesMu.Unlock()
 
-	tableName := fmt.Sprintf("%s.%s%s", schemaName, TablePrefix, moduleName)
+	tableName := fmt.Sprintf("%s.%s%s_%s", schemaName, TablePrefix, schemaName, moduleName)
 	if tables[tableName] {
 		return nil
 	}
@@ -73,6 +74,10 @@ func EnsureTable(schemaName, moduleName string, log *logrus.Logger) error {
 			client_addr String NOT NULL,
 			operator_id String NOT NULL,
 			operator String NOT NULL,
+			operator_ip String NOT NULL,
+			operator_equipment String NOT NULL,
+			operator_company String NOT NULL,
+			operator_project String NOT NULL,
 			operation_time DateTime NOT NULL,
 			push_type String NOT NULL
 		) ENGINE = MergeTree()
@@ -109,10 +114,10 @@ func InsertLogs(entries []*model.Log, log *logrus.Logger) error {
 	}
 
 	// 准备批量插入语句
-	tableName := fmt.Sprintf("%s.%s%s", schemaName, TablePrefix, moduleName)
+	tableName := fmt.Sprintf("%s.%s%s_%s", schemaName, TablePrefix, schemaName, moduleName)
 	query := fmt.Sprintf(`
-		INSERT INTO %s (output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operation_time, push_type)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO %s (output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, tableName)
 	stmt, err := tx.Prepare(query)
 	if err != nil {
@@ -132,6 +137,10 @@ func InsertLogs(entries []*model.Log, log *logrus.Logger) error {
 			nonEmpty(entry.ClientAddr, "unknown"),
 			nonEmpty(entry.OperatorID, "unknown"),
 			nonEmpty(entry.Operator, "unknown"),
+			nonEmpty(entry.OperatorIP, "unknown"),
+			nonEmpty(entry.OperatorEquipment, "unknown"),
+			nonEmpty(entry.OperatorCompany, "unknown"),
+			nonEmpty(entry.OperatorProject, "unknown"),
 			entry.Timestamp,
 			string(entry.PushType),
 		)
@@ -185,4 +194,83 @@ func CreateDatabase(dbName string, log *logrus.Logger) error {
 	}
 	log.Info(fmt.Sprintf("数据库 %s 创建成功", dbName))
 	return nil
+}
+
+// GetAllSchemas 获取所有 schema（数据库）列表
+func GetAllSchemas(log *logrus.Logger) ([]map[string]interface{}, error) {
+	rows, err := ClickHouseDB.Query("SHOW DATABASES")
+	if err != nil {
+		log.Error(fmt.Sprintf("查询所有数据库失败: %v", err))
+		return nil, fmt.Errorf("查询所有数据库失败: %v", err)
+	}
+	defer rows.Close()
+
+	var schemas []map[string]interface{}
+	for rows.Next() {
+		var dbName string
+		if err := rows.Scan(&dbName); err != nil {
+			log.Error(fmt.Sprintf("解析数据库名称失败: %v", err))
+			return nil, fmt.Errorf("解析数据库名称失败: %v", err)
+		}
+		if dbName == "system" || dbName == "default" {
+			continue // 跳过系统数据库
+		}
+		schemaID, err := GetOrCreateSchema(dbName, log)
+		if err != nil {
+			log.Error(fmt.Sprintf("获取 schema %s 的 ID 失败: %v", dbName, err))
+			continue
+		}
+		schemas = append(schemas, map[string]interface{}{
+			"name": dbName,
+			"id":   schemaID,
+		})
+	}
+	return schemas, nil
+}
+
+// GetTablesBySchemaId 根据 schemaId 获取所有相关表
+func GetTablesBySchemaId(schemaId string, log *logrus.Logger) ([]string, error) {
+	rows, err := ClickHouseDB.Query("SELECT name FROM system.tables WHERE database = ?", schemaId)
+	if err != nil {
+		log.Error(fmt.Sprintf("查询 schema %s 的表失败: %v", schemaId, err))
+		return nil, fmt.Errorf("查询 schema %s 的表失败: %v", schemaId, err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			log.Error(fmt.Sprintf("解析表名称失败: %v", err))
+			return nil, fmt.Errorf("解析表名称失败: %v", err)
+		}
+		if strings.HasPrefix(tableName, TablePrefix) {
+			tables = append(tables, fmt.Sprintf("%s.%s", schemaId, tableName))
+		}
+	}
+	return tables, nil
+}
+
+// GetModulesBySchemaId 根据 schemaId 获取所有相关模块
+func GetModulesBySchemaId(schemaId string, log *logrus.Logger) ([]string, error) {
+	tables, err := GetTablesBySchemaId(schemaId, log)
+	if err != nil {
+		return nil, err
+	}
+
+	var modules []string
+	for _, table := range tables {
+		// 表名格式: schema.log_schema_module
+		parts := strings.Split(table, ".")
+		if len(parts) != 2 {
+			continue
+		}
+		tableName := parts[1]
+		prefix := TablePrefix + schemaId + "_"
+		if strings.HasPrefix(tableName, prefix) {
+			module := strings.TrimPrefix(tableName, prefix)
+			modules = append(modules, module)
+		}
+	}
+	return modules, nil
 }

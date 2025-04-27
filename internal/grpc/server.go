@@ -57,12 +57,16 @@ func (s *LogServer) SendLog(ctx context.Context, req *proto.LogRequest) (*proto.
 			ClientIP:   clientIP,
 			ClientAddr: clientAddr,
 		},
-		Schema:     model.LogSchema(schemaName),
-		Module:     model.LogModule(req.Module),
-		PushType:   model.PushTypeGRPC,
-		Timestamp:  time.Now(),
-		OperatorID: req.OperatorID, // 赋值 operator_id
-		Operator:   req.Operator,   // 赋值 operator
+		Schema:            model.LogSchema(schemaName),
+		Module:            model.LogModule(req.Module),
+		PushType:          model.PushTypeGRPC,
+		Timestamp:         time.Now(),
+		OperatorID:        req.OperatorID,
+		Operator:          req.Operator,
+		OperatorIP:        req.OperatorIP,
+		OperatorEquipment: req.OperatorEquipment,
+		OperatorCompany:   req.OperatorCompany,
+		OperatorProject:   req.OperatorProject,
 	}
 
 	if err := db.InsertLogs([]*model.Log{entry}, s.Logger); err != nil {

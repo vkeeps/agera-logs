@@ -14,7 +14,6 @@ import (
 func SetupRouter(log *logrus.Logger) *gin.Engine {
 	r := gin.New()
 
-	// 使用 logrus 替换 Gin 默认日志
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		Formatter: func(param gin.LogFormatterParams) string {
 			log.Info(fmt.Sprintf("%s - [%s] \"%s %s %s\" %d %d",
@@ -35,6 +34,9 @@ func SetupRouter(log *logrus.Logger) *gin.Engine {
 	r.GET("/logs/:schema/:module", getLogs(log))
 	r.POST("/schemas", createSchema(log))
 	r.GET("/schemas/:name", getSchema(log))
+	r.GET("/schemas", getAllSchemas(log))
+	r.GET("/modules/:schemaId", getModulesBySchemaId(log))
+	r.GET("/logs/by-schema/:schemaId", getLogsBySchemaId(log)) // 调整路由避免冲突
 
 	return r
 }
@@ -74,18 +76,47 @@ func getSchema(log *logrus.Logger) gin.HandlerFunc {
 	}
 }
 
+func getAllSchemas(log *logrus.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		schemas, err := db.GetAllSchemas(log)
+		if err != nil {
+			log.Error("查询所有 schema 失败")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询所有 schema 失败"})
+			return
+		}
+		c.JSON(http.StatusOK, schemas)
+	}
+}
+
+func getModulesBySchemaId(log *logrus.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		schemaId := c.Param("schemaId")
+		modules, err := db.GetModulesBySchemaId(schemaId, log)
+		if err != nil {
+			log.Error("查询 schema 相关模块失败")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询 schema 相关模块失败"})
+			return
+		}
+		c.JSON(http.StatusOK, modules)
+	}
+}
+
 func createLog(log *logrus.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
-			Schema     string `json:"schema" binding:"required"`
-			Module     string `json:"module" binding:"required"`
-			Output     string `json:"output" binding:"required"`
-			Detail     string `json:"detail"`
-			ErrorInfo  string `json:"error_info"`
-			Service    string `json:"service"`
-			ClientIP   string `json:"client_ip"`
-			OperatorID string `json:"operator_id"`
-			Operator   string `json:"operator"`
+			Schema            string `json:"schema" binding:"required"`
+			Module            string `json:"module" binding:"required"`
+			Output            string `json:"output" binding:"required"`
+			Detail            string `json:"detail"`
+			ErrorInfo         string `json:"error_info"`
+			Service           string `json:"service"`
+			ClientIP          string `json:"client_ip"`
+			OperatorID        string `json:"operator_id"`
+			Operator          string `json:"operator"`
+			OperatorIP        string `json:"operator_ip"`
+			OperatorEquipment string `json:"operator_equipment"`
+			OperatorCompany   string `json:"operator_company"`
+			OperatorProject   string `json:"operator_project"`
 		}
 		if err := c.BindJSON(&req); err != nil {
 			log.Error("数据格式有误")
@@ -101,12 +132,16 @@ func createLog(log *logrus.Logger) gin.HandlerFunc {
 				Service:   req.Service,
 				ClientIP:  req.ClientIP,
 			},
-			Schema:     model.LogSchema(req.Schema),
-			Module:     model.LogModule(req.Module),
-			PushType:   model.PushTypeHTTP,
-			Timestamp:  time.Now(),
-			OperatorID: req.OperatorID, // 支持 operator_id
-			Operator:   req.Operator,   // 支持 operator
+			Schema:            model.LogSchema(req.Schema),
+			Module:            model.LogModule(req.Module),
+			PushType:          model.PushTypeHTTP,
+			Timestamp:         time.Now(),
+			OperatorID:        req.OperatorID,
+			Operator:          req.Operator,
+			OperatorIP:        req.OperatorIP,
+			OperatorEquipment: req.OperatorEquipment,
+			OperatorCompany:   req.OperatorCompany,
+			OperatorProject:   req.OperatorProject,
 		}
 
 		if err := db.InsertLogs([]*model.Log{entry}, log); err != nil {
@@ -130,7 +165,8 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 			return
 		}
 
-		rows, err := db.ClickHouseDB.Query("SELECT output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operation_time, push_type FROM " + tableName)
+		query := fmt.Sprintf("SELECT output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type FROM %s ORDER BY operation_time DESC LIMIT 1000", tableName)
+		rows, err := db.ClickHouseDB.Query(query)
 		if err != nil {
 			log.Error("查询日志失败")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询日志失败"})
@@ -139,32 +175,41 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 		defer rows.Close()
 
 		var logs []struct {
-			Output        string
-			Detail        string
-			ErrorInfo     string
-			Service       string
-			ClientIP      string
-			ClientAddr    string
-			OperatorID    string
-			Operator      string
-			OperationTime time.Time
-			PushType      string
+			Output            string
+			Detail            string
+			ErrorInfo         string
+			Service           string
+			ClientIP          string
+			ClientAddr        string
+			OperatorID        string
+			Operator          string
+			OperatorIP        string
+			OperatorEquipment string
+			OperatorCompany   string
+			OperatorProject   string
+			OperationTime     time.Time
+			PushType          string
 		}
 		for rows.Next() {
 			var entry struct {
-				Output        string
-				Detail        string
-				ErrorInfo     string
-				Service       string
-				ClientIP      string
-				ClientAddr    string
-				OperatorID    string
-				Operator      string
-				OperationTime time.Time
-				PushType      string
+				Output            string
+				Detail            string
+				ErrorInfo         string
+				Service           string
+				ClientIP          string
+				ClientAddr        string
+				OperatorID        string
+				Operator          string
+				OperatorIP        string
+				OperatorEquipment string
+				OperatorCompany   string
+				OperatorProject   string
+				OperationTime     time.Time
+				PushType          string
 			}
 			if err := rows.Scan(&entry.Output, &entry.Detail, &entry.ErrorInfo, &entry.Service,
 				&entry.ClientIP, &entry.ClientAddr, &entry.OperatorID, &entry.Operator,
+				&entry.OperatorIP, &entry.OperatorEquipment, &entry.OperatorCompany, &entry.OperatorProject,
 				&entry.OperationTime, &entry.PushType); err != nil {
 				log.Error("日志解析失败")
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "日志解析失败"})
@@ -173,5 +218,86 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 			logs = append(logs, entry)
 		}
 		c.JSON(http.StatusOK, logs)
+	}
+}
+
+func getLogsBySchemaId(log *logrus.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		schemaId := c.Param("schemaId")
+		tables, err := db.GetTablesBySchemaId(schemaId, log)
+		if err != nil {
+			log.Error("查询 schema 相关表失败")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询 schema 相关表失败"})
+			return
+		}
+
+		var allLogs []struct {
+			Module            string
+			Output            string
+			Detail            string
+			ErrorInfo         string
+			Service           string
+			ClientIP          string
+			ClientAddr        string
+			OperatorID        string
+			Operator          string
+			OperatorIP        string
+			OperatorEquipment string
+			OperatorCompany   string
+			OperatorProject   string
+			OperationTime     time.Time
+			PushType          string
+		}
+
+		for _, table := range tables {
+			query := fmt.Sprintf("SELECT output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type FROM %s ORDER BY operation_time DESC LIMIT 1000", table)
+			rows, err := db.ClickHouseDB.Query(query)
+			if err != nil {
+				log.Error("查询日志失败")
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "查询日志失败"})
+				return
+			}
+			defer rows.Close()
+
+			for rows.Next() {
+				var entry struct {
+					Module            string
+					Output            string
+					Detail            string
+					ErrorInfo         string
+					Service           string
+					ClientIP          string
+					ClientAddr        string
+					OperatorID        string
+					Operator          string
+					OperatorIP        string
+					OperatorEquipment string
+					OperatorCompany   string
+					OperatorProject   string
+					OperationTime     time.Time
+					PushType          string
+				}
+				if err := rows.Scan(&entry.Output, &entry.Detail, &entry.ErrorInfo, &entry.Service,
+					&entry.ClientIP, &entry.ClientAddr, &entry.OperatorID, &entry.Operator,
+					&entry.OperatorIP, &entry.OperatorEquipment, &entry.OperatorCompany, &entry.OperatorProject,
+					&entry.OperationTime, &entry.PushType); err != nil {
+					log.Error("日志解析失败")
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "日志解析失败"})
+					return
+				}
+				entry.Module = table
+				allLogs = append(allLogs, entry)
+			}
+		}
+
+		for i := 0; i < len(allLogs)-1; i++ {
+			for j := i + 1; j < len(allLogs); j++ {
+				if allLogs[i].OperationTime.Before(allLogs[j].OperationTime) {
+					allLogs[i], allLogs[j] = allLogs[j], allLogs[i]
+				}
+			}
+		}
+
+		c.JSON(http.StatusOK, allLogs)
 	}
 }
