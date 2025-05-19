@@ -147,6 +147,7 @@ func StartUDPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			// 在 StartUDPServer 的 goroutine 中处理数据时添加检查
 			for pkt := range dataChan {
 				var req UDPLogRequest
 				if err := json.Unmarshal(pkt.data, &req); err != nil {
@@ -156,6 +157,12 @@ func StartUDPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
 
 				if req.SchemaID == "" {
 					log.Error(fmt.Sprintf("收到空 schema_id，原始数据: %s", string(pkt.data)))
+					continue
+				}
+
+				// 检查 service 是否为空
+				if req.Service == "" {
+					log.Error(fmt.Sprintf("UDP 日志缺少 service 字段，跳过插入，原始数据: %+v", req))
 					continue
 				}
 

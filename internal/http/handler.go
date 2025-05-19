@@ -124,6 +124,13 @@ func createLog(log *logrus.Logger) gin.HandlerFunc {
 			return
 		}
 
+		// 检查 service 是否为空
+		if req.Service == "" {
+			log.Error(fmt.Sprintf("HTTP 日志缺少 service 字段，跳过插入，原始数据: %+v", req))
+			c.JSON(http.StatusBadRequest, gin.H{"error": "service 字段为空"})
+			return
+		}
+
 		entry := &model.Log{
 			LogBase: model.LogBase{
 				Output:    req.Output,

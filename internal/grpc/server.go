@@ -24,6 +24,12 @@ func (s *LogServer) SendLog(ctx context.Context, req *proto.LogRequest) (*proto.
 		clientIP, clientAddr = parseRemoteAddr(p.Addr.String())
 	}
 
+	// 检查 service 是否为空
+	if req.Service == "" {
+		s.Logger.Error(fmt.Sprintf("gRPC 日志缺少 service 字段，跳过插入，原始数据: %+v", req))
+		return &proto.LogResponse{Success: false}, fmt.Errorf("service 字段为空")
+	}
+
 	schemaID := db.GenerateSchemaID(req.Schema)
 	schemaName, err := db.GetSchemaNameByID(schemaID, s.Logger)
 	if err != nil {

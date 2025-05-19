@@ -197,6 +197,12 @@ func handleConnection(conn net.Conn, logBuffer *[]*model.Log, mu *sync.Mutex, st
 				continue
 			}
 
+			// 检查 service 是否为空
+			if req.Service == "" {
+				log.Error(fmt.Sprintf("TCP 日志缺少 service 字段，跳过插入，原始数据: %+v", req))
+				continue
+			}
+
 			schemaName, err := db.GetSchemaNameByID(req.SchemaID, log)
 			if err != nil {
 				log.Error(fmt.Sprintf("获取 schema_id %s 失败: %v", req.SchemaID, err))
