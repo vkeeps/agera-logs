@@ -35,6 +35,7 @@ type LogRequest struct {
 	OperatorEquipment string                 `protobuf:"bytes,10,opt,name=operator_equipment,json=operatorEquipment,proto3" json:"operator_equipment,omitempty"`
 	OperatorCompany   string                 `protobuf:"bytes,11,opt,name=operator_company,json=operatorCompany,proto3" json:"operator_company,omitempty"`
 	OperatorProject   string                 `protobuf:"bytes,12,opt,name=operator_project,json=operatorProject,proto3" json:"operator_project,omitempty"`
+	LogLevel          string                 `protobuf:"bytes,13,opt,name=log_level,json=logLevel,proto3" json:"log_level,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -153,6 +154,13 @@ func (x *LogRequest) GetOperatorProject() string {
 	return ""
 }
 
+func (x *LogRequest) GetLogLevel() string {
+	if x != nil {
+		return x.LogLevel
+	}
+	return ""
+}
+
 type LogResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -201,7 +209,7 @@ var File_proto_log_proto protoreflect.FileDescriptor
 
 const file_proto_log_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/log.proto\x12\x05proto\"\x86\x03\n" +
+	"\x0fproto/log.proto\x12\x05proto\"\xa3\x03\n" +
 	"\n" +
 	"LogRequest\x12\x16\n" +
 	"\x06schema\x18\x01 \x01(\tR\x06schema\x12\x16\n" +
@@ -221,7 +229,8 @@ const file_proto_log_proto_rawDesc = "" +
 	"\x12operator_equipment\x18\n" +
 	" \x01(\tR\x11operatorEquipment\x12)\n" +
 	"\x10operator_company\x18\v \x01(\tR\x0foperatorCompany\x12)\n" +
-	"\x10operator_project\x18\f \x01(\tR\x0foperatorProject\"'\n" +
+	"\x10operator_project\x18\f \x01(\tR\x0foperatorProject\x12\x1b\n" +
+	"\tlog_level\x18\r \x01(\tR\blogLevel\"'\n" +
 	"\vLogResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess2>\n" +
 	"\n" +

@@ -22,6 +22,7 @@ type UDPLogRequest struct {
 	Detail            string `json:"detail,omitempty"`
 	ErrorInfo         string `json:"error_info,omitempty"`
 	Service           string `json:"service,omitempty"`
+	LogLevel          string `json:"log_level,omitempty"`
 	OperatorID        string `json:"operator_id,operatorId"`
 	Operator          string `json:"operator,omitempty"`
 	OperatorIP        string `json:"operator_ip,omitempty"`
@@ -204,6 +205,7 @@ func StartUDPServer(basePort int, stopChan chan struct{}, log *logrus.Logger) {
 						Service:    req.Service,
 						ClientIP:   clientIP,
 						ClientAddr: clientAddr,
+						LogLevel:   req.LogLevel,
 					},
 					Schema:            model.LogSchema(schemaName),
 					Module:            model.LogModule(req.Module),

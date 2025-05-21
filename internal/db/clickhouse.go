@@ -72,6 +72,7 @@ func EnsureTable(schemaName, moduleName string, log *logrus.Logger) error {
 			service String NOT NULL,
 			client_ip String NOT NULL,
 			client_addr String NOT NULL,
+			log_level String NOT NULL,
 			operator_id String NOT NULL,
 			operator String NOT NULL,
 			operator_ip String NOT NULL,
@@ -116,8 +117,8 @@ func InsertLogs(entries []*model.Log, log *logrus.Logger) error {
 	// 准备批量插入语句
 	tableName := fmt.Sprintf("%s.%s%s_%s", schemaName, TablePrefix, schemaName, moduleName)
 	query := fmt.Sprintf(`
-		INSERT INTO %s (output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO %s (output, detail, error_info, service, client_ip, client_addr, log_level, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, tableName)
 	stmt, err := tx.Prepare(query)
 	if err != nil {
@@ -128,6 +129,14 @@ func InsertLogs(entries []*model.Log, log *logrus.Logger) error {
 
 	// 批量插入数据
 	for _, entry := range entries {
+		// LogLevel特殊处理：为空时设为INFO，并确保大写
+		logLevel := entry.LogLevel
+		if logLevel == "" {
+			logLevel = "INFO"
+		} else {
+			logLevel = strings.ToUpper(logLevel)
+		}
+
 		_, err := stmt.Exec(
 			entry.Output,
 			entry.Detail,
@@ -135,6 +144,7 @@ func InsertLogs(entries []*model.Log, log *logrus.Logger) error {
 			nonEmpty(entry.Service, "unknown"),
 			nonEmpty(entry.ClientIP, "0.0.0.0"),
 			nonEmpty(entry.ClientAddr, "unknown"),
+			logLevel, // 使用处理后的logLevel
 			nonEmpty(entry.OperatorID, "unknown"),
 			nonEmpty(entry.Operator, "unknown"),
 			nonEmpty(entry.OperatorIP, "unknown"),

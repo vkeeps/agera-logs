@@ -111,6 +111,7 @@ func createLog(log *logrus.Logger) gin.HandlerFunc {
 			ErrorInfo         string `json:"error_info"`
 			Service           string `json:"service"`
 			ClientIP          string `json:"client_ip"`
+			LogLevel          string `json:"log_level"`
 			OperatorID        string `json:"operator_id"`
 			Operator          string `json:"operator"`
 			OperatorIP        string `json:"operator_ip"`
@@ -138,6 +139,7 @@ func createLog(log *logrus.Logger) gin.HandlerFunc {
 				ErrorInfo: req.ErrorInfo,
 				Service:   req.Service,
 				ClientIP:  req.ClientIP,
+				LogLevel:  req.LogLevel,
 			},
 			Schema:            model.LogSchema(req.Schema),
 			Module:            model.LogModule(req.Module),
@@ -172,7 +174,7 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 			return
 		}
 
-		query := fmt.Sprintf("SELECT output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type FROM %s ORDER BY operation_time DESC LIMIT 1000", tableName)
+		query := fmt.Sprintf("SELECT output, detail, error_info, service, client_ip, client_addr, log_level, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type FROM %s ORDER BY operation_time DESC LIMIT 1000", tableName)
 		rows, err := db.ClickHouseDB.Query(query)
 		if err != nil {
 			log.Error("查询日志失败")
@@ -188,6 +190,7 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 			Service           string
 			ClientIP          string
 			ClientAddr        string
+			LogLevel          string
 			OperatorID        string
 			Operator          string
 			OperatorIP        string
@@ -205,6 +208,7 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 				Service           string
 				ClientIP          string
 				ClientAddr        string
+				LogLevel          string
 				OperatorID        string
 				Operator          string
 				OperatorIP        string
@@ -215,7 +219,7 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 				PushType          string
 			}
 			if err := rows.Scan(&entry.Output, &entry.Detail, &entry.ErrorInfo, &entry.Service,
-				&entry.ClientIP, &entry.ClientAddr, &entry.OperatorID, &entry.Operator,
+				&entry.ClientIP, &entry.ClientAddr, &entry.LogLevel, &entry.OperatorID, &entry.Operator,
 				&entry.OperatorIP, &entry.OperatorEquipment, &entry.OperatorCompany, &entry.OperatorProject,
 				&entry.OperationTime, &entry.PushType); err != nil {
 				log.Error("日志解析失败")
@@ -246,6 +250,7 @@ func getLogsBySchemaId(log *logrus.Logger) gin.HandlerFunc {
 			Service           string
 			ClientIP          string
 			ClientAddr        string
+			LogLevel          string
 			OperatorID        string
 			Operator          string
 			OperatorIP        string
@@ -257,7 +262,7 @@ func getLogsBySchemaId(log *logrus.Logger) gin.HandlerFunc {
 		}
 
 		for _, table := range tables {
-			query := fmt.Sprintf("SELECT output, detail, error_info, service, client_ip, client_addr, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type FROM %s ORDER BY operation_time DESC LIMIT 1000", table)
+			query := fmt.Sprintf("SELECT output, detail, error_info, service, client_ip, client_addr, log_level, operator_id, operator, operator_ip, operator_equipment, operator_company, operator_project, operation_time, push_type FROM %s ORDER BY operation_time DESC LIMIT 1000", table)
 			rows, err := db.ClickHouseDB.Query(query)
 			if err != nil {
 				log.Error("查询日志失败")
@@ -275,6 +280,7 @@ func getLogsBySchemaId(log *logrus.Logger) gin.HandlerFunc {
 					Service           string
 					ClientIP          string
 					ClientAddr        string
+					LogLevel          string
 					OperatorID        string
 					Operator          string
 					OperatorIP        string
@@ -285,7 +291,7 @@ func getLogsBySchemaId(log *logrus.Logger) gin.HandlerFunc {
 					PushType          string
 				}
 				if err := rows.Scan(&entry.Output, &entry.Detail, &entry.ErrorInfo, &entry.Service,
-					&entry.ClientIP, &entry.ClientAddr, &entry.OperatorID, &entry.Operator,
+					&entry.ClientIP, &entry.ClientAddr, &entry.LogLevel, &entry.OperatorID, &entry.Operator,
 					&entry.OperatorIP, &entry.OperatorEquipment, &entry.OperatorCompany, &entry.OperatorProject,
 					&entry.OperationTime, &entry.PushType); err != nil {
 					log.Error("日志解析失败")

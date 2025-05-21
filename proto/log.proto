@@ -20,6 +20,7 @@ message LogRequest {
   string operator_equipment = 10;
   string operator_company = 11;
   string operator_project = 12;
+  string log_level = 13;
 }
 
 message LogResponse {

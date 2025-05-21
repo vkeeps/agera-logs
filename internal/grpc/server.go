@@ -62,6 +62,7 @@ func (s *LogServer) SendLog(ctx context.Context, req *proto.LogRequest) (*proto.
 			Service:    req.Service,
 			ClientIP:   clientIP,
 			ClientAddr: clientAddr,
+			LogLevel:   req.LogLevel,
 		},
 		Schema:            model.LogSchema(schemaName),
 		Module:            model.LogModule(req.Module),

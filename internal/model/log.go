@@ -37,6 +37,7 @@ type LogBase struct {
 	Service    string `json:"service"`
 	ClientIP   string `json:"client_ip"`
 	ClientAddr string `json:"client_addr"`
+	LogLevel   string `json:"log_level"`
 }
 
 // Log 推送时的完整日志模型
