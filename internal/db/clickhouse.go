@@ -240,10 +240,22 @@ func GetAllSchemas(log *logrus.Logger) ([]map[string]interface{}, error) {
 
 // GetTablesBySchemaId 根据 schemaId 获取所有相关表
 func GetTablesBySchemaId(schemaId string, log *logrus.Logger) ([]string, error) {
-	rows, err := ClickHouseDB.Query("SELECT name FROM system.tables WHERE database = ?", schemaId)
+	// 先通过schemaId获取实际的数据库名称
+	schemaName, err := GetSchemaNameByID(schemaId, log)
 	if err != nil {
-		log.Error(fmt.Sprintf("查询 schema %s 的表失败: %v", schemaId, err))
-		return nil, fmt.Errorf("查询 schema %s 的表失败: %v", schemaId, err)
+		log.Error(fmt.Sprintf("获取 schema_id %s 对应的数据库名失败: %v", schemaId, err))
+		return nil, fmt.Errorf("获取 schema_id %s 对应的数据库名失败: %v", schemaId, err)
+	}
+
+	if schemaName == "" {
+		log.Error(fmt.Sprintf("未找到 schema_id %s 对应的数据库名", schemaId))
+		return nil, fmt.Errorf("未找到 schema_id %s 对应的数据库名", schemaId)
+	}
+
+	rows, err := ClickHouseDB.Query("SELECT name FROM system.tables WHERE database = ?", schemaName)
+	if err != nil {
+		log.Error(fmt.Sprintf("查询 schema %s 的表失败: %v", schemaName, err))
+		return nil, fmt.Errorf("查询 schema %s 的表失败: %v", schemaName, err)
 	}
 	defer rows.Close()
 
@@ -255,7 +267,7 @@ func GetTablesBySchemaId(schemaId string, log *logrus.Logger) ([]string, error) 
 			return nil, fmt.Errorf("解析表名称失败: %v", err)
 		}
 		if strings.HasPrefix(tableName, TablePrefix) {
-			tables = append(tables, fmt.Sprintf("%s.%s", schemaId, tableName))
+			tables = append(tables, fmt.Sprintf("%s.%s", schemaName, tableName))
 		}
 	}
 	return tables, nil
@@ -263,20 +275,35 @@ func GetTablesBySchemaId(schemaId string, log *logrus.Logger) ([]string, error) 
 
 // GetModulesBySchemaId 根据 schemaId 获取所有相关模块
 func GetModulesBySchemaId(schemaId string, log *logrus.Logger) ([]string, error) {
-	tables, err := GetTablesBySchemaId(schemaId, log)
+	// 先通过schemaId获取实际的数据库名称
+	schemaName, err := GetSchemaNameByID(schemaId, log)
 	if err != nil {
-		return nil, err
+		log.Error(fmt.Sprintf("获取 schema_id %s 对应的数据库名失败: %v", schemaId, err))
+		return nil, fmt.Errorf("获取 schema_id %s 对应的数据库名失败: %v", schemaId, err)
 	}
 
+	if schemaName == "" {
+		log.Error(fmt.Sprintf("未找到 schema_id %s 对应的数据库名", schemaId))
+		return nil, fmt.Errorf("未找到 schema_id %s 对应的数据库名", schemaId)
+	}
+
+	// 直接查询数据库表，而不是通过GetTablesBySchemaId
+	rows, err := ClickHouseDB.Query("SELECT name FROM system.tables WHERE database = ?", schemaName)
+	if err != nil {
+		log.Error(fmt.Sprintf("查询 schema %s 的表失败: %v", schemaName, err))
+		return nil, fmt.Errorf("查询 schema %s 的表失败: %v", schemaName, err)
+	}
+	defer rows.Close()
+
 	var modules []string
-	for _, table := range tables {
-		// 表名格式: schema.log_schema_module
-		parts := strings.Split(table, ".")
-		if len(parts) != 2 {
-			continue
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			log.Error(fmt.Sprintf("解析表名称失败: %v", err))
+			return nil, fmt.Errorf("解析表名称失败: %v", err)
 		}
-		tableName := parts[1]
-		prefix := TablePrefix + schemaId + "_"
+
+		prefix := TablePrefix + schemaName + "_"
 		if strings.HasPrefix(tableName, prefix) {
 			module := strings.TrimPrefix(tableName, prefix)
 			modules = append(modules, module)

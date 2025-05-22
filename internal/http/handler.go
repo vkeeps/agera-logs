@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -235,11 +236,41 @@ func getLogs(log *logrus.Logger) gin.HandlerFunc {
 func getLogsBySchemaId(log *logrus.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		schemaId := c.Param("schemaId")
-		tables, err := db.GetTablesBySchemaId(schemaId, log)
+
+		// 先通过schemaId获取实际的数据库名称
+		schemaName, err := db.GetSchemaNameByID(schemaId, log)
 		if err != nil {
-			log.Error("查询 schema 相关表失败")
+			log.Error(fmt.Sprintf("获取 schema_id %s 对应的数据库名失败: %v", schemaId, err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取 schema_id %s 对应的数据库名失败", schemaId)})
+			return
+		}
+
+		if schemaName == "" {
+			log.Error(fmt.Sprintf("未找到 schema_id %s 对应的数据库名", schemaId))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("未找到 schema_id %s 对应的数据库名", schemaId)})
+			return
+		}
+
+		// 使用实际的数据库名称查询表
+		rows, err := db.ClickHouseDB.Query("SELECT name FROM system.tables WHERE database = ?", schemaName)
+		if err != nil {
+			log.Error(fmt.Sprintf("查询 schema %s 的表失败: %v", schemaName, err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询 schema 相关表失败"})
 			return
+		}
+		defer rows.Close()
+
+		var tables []string
+		for rows.Next() {
+			var tableName string
+			if err := rows.Scan(&tableName); err != nil {
+				log.Error(fmt.Sprintf("解析表名称失败: %v", err))
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "解析表名称失败"})
+				return
+			}
+			if strings.HasPrefix(tableName, db.TablePrefix) {
+				tables = append(tables, fmt.Sprintf("%s.%s", schemaName, tableName))
+			}
 		}
 
 		var allLogs []struct {
